@@ -45,6 +45,17 @@ class Extract:
 
         return gdp_rows
 
+    def save_json(self,):
+        '''
+        데이터프레임을 JSON 형식으로 저장합니다.
+        '''
+        try:
+            filename = 'Countries_by_GDP.json'
+            self.frame.to_json(filename, indent=4)
+            print(f"Updated: {filename}")
+        
+        except Exception as e:
+            print(f"Error processing {filename}: {e}")
 
 class Transform:
     raw_data = []
@@ -107,17 +118,6 @@ class Load:
         '''
         self.frame = frame
     
-    def save_json(self,):
-        '''
-        데이터프레임을 JSON 형식으로 저장합니다.
-        '''
-        try:
-            filename = 'Countries_by_GDP.json'
-            self.frame.to_json(filename, indent=4)
-            print(f"Updated: {filename}")
-        
-        except Exception as e:
-            print(f"Error processing {filename}: {e}")
             
     def save_db(self,):
         '''
