@@ -1,0 +1,8 @@
+2025-January-06-17-03-02 - This is a test log message.
+2025-January-06-17-03-07 - This is a test log message.
+2025-January-06-17-03-10 - This is a test log message.
+2025-January-06-17-03-16 - Started 'sample_function' at 2025-January-06-17-03-16
+2025-January-06-17-03-18 - Finished 'sample_function' at 2025-January-06-17-03-18
+2025-January-06-17-04-00 - This is a test log message.
+2025-January-06-17-04-03 - Started 'sample_function'
+2025-January-06-17-04-05 - Finished 'sample_function'
