@@ -8,14 +8,70 @@ import re
 import time, datetime
 import logging
 from functools import wraps
-import pprint
+import os
 
 # logger setting
-
+current_dir = os.path.dirname(os.path.abspath(__file__))
+log_file = 'etl_project_log.txt'
+log_file_path = os.path.join(current_dir, log_file)
+print(log_file_path)
+log_outdated = True
+logger = logging.getLogger()
 # 테스트 로그 메시지
 # logger.info("This is a test log message.")
 
+def get_latest_log(file_path): 
+    '''
+    가장 최근 기록된 로그를 가져옵니다.
+    필요하다면, 반환된 file position을 이용해 더 이전 로그도 탐색할 수 있습니다.
+    Param: file_path: str
+    return: buffer: list, file_position: int
+    '''
+    with open(file_path, 'rb') as file:
+        file.seek(0, 2)  # 파일 끝으로 이동
+        file_position = file.tell()
+        
+        buffer = bytearray()
+        while file_position > 0:
+            file_position -= 1
+            file.seek(file_position)
+            byte = file.read(1)
+            
+            # 줄바꿈 문자를 만날 때마다 처리
+            if byte == b'\n':
+                if buffer:
+                    return buffer[::-1].decode('utf-8'), file_position-1  # 최신 로그 반환
+            else:
+                buffer.append(byte[0])
 
+        # 파일이 줄바꿈 없이 단일 라인일 경우
+        if buffer:
+            return buffer[::-1].decode('utf-8'), file_position-1
+
+    return None  # 파일이 비어 있을 경우
+      
+def check_DB_outdated(log: str):
+    '''
+    로그 기반으로 데이터 최신화 필요성을 검증합니다.
+    로그가 6개월 전이나 그 이상, 혹은 마지막 로그에 문제가 있었을 경우 False를 반환합니다.
+    Param: log: str
+    return: bool
+    '''
+    now = datetime.datetime.now().strftime("%Y-%m")
+    now = now.split('-')
+
+    log_year, log_month = log.split('-')[:2]
+    log_month = datetime.datetime.strptime(log_month, '%B').month
+
+    if 'Finished' in log and 'Load' in log and now[0] == log_year and int(now[1]) == log_month: # log written in 6 months
+        return True
+    elif now[0] == log_year and int(now[1]) - log_month > 6: # 6 months ago...
+        return False
+    elif now[0] > log_year: # outdated least more than a year
+        return False
+    else: # There were Some Error written in log 
+        return False
+  
 def url_validation_check(url:str):
     '''
     URL 유효성 검증 함수
@@ -189,10 +245,15 @@ class Load:
 
         except sqlite3.OperationalError as e:
             print("Failed to open database:", e)
-            
-        self.frame.to_sql('Countries_by_GDP', conn)
+        # cursor = conn.cursor()
+        # cursor.execute("DROP TABLE IF EXISTS Countries_by_GDP;") #이미 있던 테이블 제거 후 저장
+        self.frame.to_sql('Countries_by_GDP', conn, if_exists='replace')
     
     def save_Region_to_DB(self, region_data:dict):
+        '''
+        Region data를 DB에 'Region_Category' 테이블로 저장합니다.
+        Param: region_data: dict
+        '''
         region_list = []
         for region, countries in region_data.items():
             for country in countries:
@@ -206,7 +267,7 @@ class Load:
         except sqlite3.OperationalError as e:
             print("Failed to open database:", e)
             
-        region_df.to_sql('Region_Category', conn)        
+        region_df.to_sql('Region_Category', conn, if_exists='replace')        
         
 def visualize_avg_GDP_by_Region(region:dict, gdp_data:dict):
     '''
@@ -363,7 +424,10 @@ GROUP BY
 
     df_gdp = pd.read_sql_query(sql_gdp, conn)
     
-    return df_gdp, df_region
+    print()
+    print(df_gdp)
+    print()
+    print(df_region)
 
 class Executer:
     wiki_data = []
@@ -403,7 +467,6 @@ class Executer:
         
 #========================================================================================
 if __name__ == "__main__":
-    logger = logging.getLogger()
     if not logger.handlers:
         # 사용자 정의 Formatter
         formatter = logging.Formatter(
@@ -412,33 +475,47 @@ if __name__ == "__main__":
         )
 
         # 핸들러 생성 및 설정
-        handler = logging.FileHandler('etl_project_log.txt')
+        handler = logging.FileHandler(log_file_path)
         handler.setFormatter(formatter)
 
         # 로거 설정
         logger.setLevel(logging.INFO)
         logger.addHandler(handler)
+    
     try:
         print("Start Code")
         with sqlite3.connect('World_Economies.db') as conn:
             print(f"Opened SQLite database with version {sqlite3.sqlite_version} successfully.")
 
     except sqlite3.OperationalError as e:
-        print("Failed to open database:", e)    
+        print("Failed to open database:", e)   
+        
+        
+    buffer, fp = get_latest_log(log_file_path)
+    if check_DB_outdated(buffer):
+        print("You're looking latest DB")
+        visualize_with_SQL()
 
-    c = conn.cursor()
+    else:
+        print("DB need to be Refreshed")
+        # if get_latest_log(log_file)[1] == 
 
-    runner = Executer()
-    
-    runner.do_Extract()
-    print("Extracted")
-    
-    runner.do_Transform()
-    print("Transformed")
-    
-    runner.do_Load()
-    print("Loaded")
-    
-    df_gdp, df_region = visualize_with_SQL()
-    print(df_gdp)
-    print(df_region)
+        c = conn.cursor()
+
+        runner = Executer()
+        
+        runner.do_Extract()
+        # print("Extracted")
+        
+        runner.do_Transform()
+        # print("Transformed")
+        
+        runner.do_Load()
+        # print("Loaded")
+        
+        visualize_with_SQL()
+        
+        
+        
+ 
+
