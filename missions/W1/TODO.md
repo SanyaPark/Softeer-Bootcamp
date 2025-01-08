@@ -11,16 +11,16 @@ Region? 제공된 위키 사이트 하단에 있는 Region을 사용해야 하�
 - GDP 단위는 1B USD, 소수점 2자리 까지만 표기 ✔
 
 ## 팀 활동 요구사항
-- IMF 홈페이지에서 직접 데이터를 가져오는 방법은 없을까요? 어떻게 하면 될까요?
+- IMF 홈페이지에서 직접 데이터를 가져오는 방법은 없을까요? 어떻게 하면 될까요? ✔
 
 - 만약 데이터가 갱신되면 과거의 데이터는 어떻게 되어야 할까요? <br>
   과거의 데이터를 조회하는 게 필요하다면 ETL 프로세스를 어떻게 변경해야 할까요?
 
 ## Logging
 - ETL 각 프로세스 별 시작 / 끝을 로그에 기록
-- 로그는 기존 파일에 append
-- log format: Y-MMM-D-H-M-S
-- etl_project_log.txt 파일에 저장
+- 로그는 기존 파일에 append ✔
+- log format: Y-MMM-D-H-M-S ✔
+- etl_project_log.txt 파일에 저장 ✔
   
 
 ## Extract
@@ -36,8 +36,8 @@ Region? 제공된 위키 사이트 하단에 있는 Region을 사용해야 하�
 - 단위 재조정 (1M -> 1B $) ✔
 - 100B USD 기준 컷 ✔
 - 아래의 항목은 화면 출력으로 넘겨도 될 듯? 
-  - Region 별 분류
-  - top 5 평균 구하기 
+  - Region 별 분류 ✔
+  - top 5 평균 구하기 ✔ 
 
 
 ## Load
