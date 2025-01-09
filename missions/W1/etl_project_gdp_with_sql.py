@@ -325,14 +325,9 @@ class Load:
         '''
         데이터프레임을 DB에 저장합니다.
         '''
-        # try:
-        #     with sqlite3.connect(db_path) as conn:
-        #         print(f"Opened SQLite database with version {sqlite3.sqlite_version} successfully.")
-
-        # except sqlite3.OperationalError as e:
-        #     print("Failed to open database:", e)
-        # cursor = conn.cursor()
-        # cursor.execute("DROP TABLE IF EXISTS Countries_by_GDP;") #이미 있던 테이블 제거 후 저장
+        # 먼저 오래된 데이터 따로 빼기
+        
+        
         try:
             self.frame = self.frame.sort_values(by='Country')
             self.frame.to_sql('Countries_by_GDP', self.conn, if_exists='replace')
@@ -610,7 +605,7 @@ class Executer:
         
 #========================================================================================
 '''
-TODO: gdp 저장 시 나라이름순 정렬
+TODO: gdp 저장 시 나라이름순 정렬 <-- 완료
     : 갱신 시 오래된 데이터 따로 빼기
 '''
 if __name__ == "__main__":
