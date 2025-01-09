@@ -60,7 +60,7 @@ def get_latest_log_with_pandas(file_path:str, seeker:int = -1):
         
     # 로그 파일을 Pandas DataFrame으로 읽기
     df = pd.read_csv(file_path, header=None, names=['year', 'status', 'task'])
-
+    
     # 마지막 로그 가져오기
     last_log = df.iloc[seeker]
     return ",".join([last_log['year'], last_log['status'], last_log['task']]), seeker-1
@@ -169,25 +169,15 @@ class Extract:
         self.WIKI_URL = 'https://en.wikipedia.org/wiki/List_of_countries_by_GDP_%28nominal%29'
         self.IMF_URL = 'https://www.imf.org/external/datamapper/api/v1/NGDPD'
     
-    # def collect_data(self, html: str):
-    #     '''
-    #     원본 데이터 수집 함수
-    #     국가별 자료입니다. 형식: [[국가명, GDP, 연도, GDP, 연도, GDP, 연도] ... ] 
-    #     Args: html: str
-    #     return: gdp_rows: List 
-    #     '''
-    #     soup = BeautifulSoup(html, 'html.parser')
-    #     table = soup.select('table.wikitable > tbody > tr:nth-child(n+4)')#.wikitable sortable sticky-header-multi static-row-numbers jquery-tablesorter')
-    #     # tr, td 등의 tag가 변수 취급이 가능하구나
-    #     gdp_rows = [[td.get_text(strip=True) for td in tr.find_all('td')] for tr in table]
-
-    #     return gdp_rows
-    
     def data_from_IMF(self, year = now_year):
         '''
         현재 년도의 IMF의 API를 이용하여 데이터를 추출합니다.
-        Args: year: int (현재년도)
-        return: gdps: dict {country : GDP}
+        
+        Args: 
+            year: int (현재년도)
+        
+        Returns:
+            gdps (dict {country : GDP})
         '''
         year = year
         nameURL = 'https://www.imf.org/external/datamapper/api/v1/countries'
@@ -215,7 +205,9 @@ class Extract:
     def save_json(self, url: str):
         '''
         웹 상의 테이블 데이터 '원본'을 JSON 형식으로 저장합니다.
-        Args: url: str
+        
+        Args: 
+            url (str)
         '''
         # 첫 번째 테이블을 가져옵니다 (여러 테이블이 있을 수 있으므로 인덱스로 선택)
         df = pd.read_html(url, attrs={"class": "wikitable"})[0]
@@ -254,7 +246,9 @@ class Transform:
         링크를 지우고 문자열로 된 숫자를 정수로 변환합니다.
         '-'로 표기된 데이터는 None 을 기입합니다.
         
-        return: country: List, gdp: List
+        Returns: 
+            country (list)
+            gdp (list)
         '''
         og_data = pd.read_json(raw_json_file_path)
         columns = [
@@ -290,8 +284,13 @@ class Transform:
         '''
         가공된 데이터로 데이터프레임을 생성합니다.
         GDP에 대해 내림차순 정렬되어 있고, 단위는 1B USD, 소수점 두자리까지 출력됩니다.
-        Args: country: list[str], gdp: list[int | None]
-        return: GDP_data: pd.DataFrame
+        
+        Args: 
+        country (list[str])
+        gdp (list[int | None])
+        
+        Returns 
+            GDP_data (pd.DataFrame)
         '''
         country = self.country
         gdp = self.gdp
@@ -313,7 +312,9 @@ class Load:
     def __init__(self, frame:pd.DataFrame, conn):
         '''
         데이터프레임을 저장하기 위해 가공된 데이터프레임을 불러옵니다.
-        Args: frame: DataFrame, conn: db connection
+        Args: 
+            frame (pd.DataFrame)
+            conn (sqlite3.Connection)
         '''
         self.frame = frame    
         self.conn = conn    
@@ -344,7 +345,8 @@ class Load:
     def save_Region_to_DB(self, region_data:dict):
         '''
         Region data를 DB에 'Region_Category' 테이블로 저장합니다.
-        Args: region_data: dict
+        Args: 
+            region_data (dict)
         '''
         region_list = []
         for region, countries in region_data.items():
@@ -367,8 +369,10 @@ class Load:
 def region_categorize(html: str):
     '''
     Region : [소속 국가] 형식의 딕셔너리를 반환합니다.
-    Args: html: str
-    return: region: dict
+    Args: 
+        html (str)
+    Returns: 
+        region (dict)
     '''
     soup = BeautifulSoup(html, 'html.parser')
     table = soup.select('div.fancy > table > tr')
@@ -419,7 +423,8 @@ def region_categorize(html: str):
 def visualze_GDP_DESC_Over_100(gdp_data: dict):
     '''
     SQL을 사용하지 않고 GDP >= 100B USD인 데이터프레임을 출력합니다.
-    Args: gdp_data: dict
+    Args: 
+        gdp_data (dict)
     '''
     df = pd.DataFrame(gdp_data)
     df.sort_values('GDP_USD_bilion', ascending=False, inplace=True)
@@ -433,7 +438,9 @@ def visualze_GDP_DESC_Over_100(gdp_data: dict):
 def visualize_avg_GDP_by_Region(gdp_data:dict):
     '''
     SQL을 사용하지 않고 Region 별 상위 5개 국가의 평균 GDP를 기록한 데이터프레임을 출력합니다.
-    Args: region: dict, gdp_data: dict
+    Args: 
+        region (dict) 
+        gdp_data (dict)
     '''
     region = region_categorize(url_validation_check('https://www.imf.org/external/datamapper/region.htm#sea'))
 
@@ -492,7 +499,66 @@ def logging_time(func):
 
 #========================================================================================
 
+def visualize_with_SQL(connection:sqlite3.Connection):
+    '''
+    GDP 100B USD 이상인 국가들의 내림차순 정렬된 DataFrame과
+    Region 별 상위 5개 국가의 GDP 평균을 담은 DataFrame을 반환합니다.
+    Args:
+        connection (sqlite3.Connection)
+    Returns: 
+        df_gdp (pd.DataFrame)
+        df_region (pd.DataFrame)
+    '''
+    conn = connection
+    # try:
+    #     with sqlite3.connect(db_path) as conn:
+    #         print(f"Opened SQLite database with version {sqlite3.sqlite_version} successfully.")
+    #         cursor = conn.cursor()
+    # except sqlite3.OperationalError as e:
+    #     print("Failed to open database:", e)
 
+    sql_region = '''
+    WITH RankedCountries AS (
+        SELECT 
+            Countries_by_GDP.Country,
+            Countries_by_GDP.GDP_USD_bilion,
+            B.Region,
+            ROW_NUMBER() OVER (PARTITION BY B.Region ORDER BY GDP_USD_bilion DESC) AS Rank
+        FROM 
+            Countries_by_GDP
+        INNER JOIN 
+            Region_Category AS B
+        ON 
+            Countries_by_GDP.Country = B.Country
+    )
+    SELECT 
+        Region,
+        ROUND(AVG(GDP_USD_bilion), 2) AS Avg_GDP
+    FROM 
+        RankedCountries
+    WHERE 
+        Rank <= 5
+    GROUP BY 
+        Region;
+    '''
+    df_region = pd.read_sql_query(sql_region, conn)
+
+    sql_gdp = '''
+    SELECT Country, GDP_USD_bilion 
+    FROM Countries_by_GDP
+    WHERE GDP_USD_bilion > 100
+    ORDER BY GDP_USD_bilion DESC
+    '''
+
+    df_gdp = pd.read_sql_query(sql_gdp, conn)
+    
+    print(f"{'GDP Over 100B USD':-^34}")
+    print()
+    print(df_gdp)
+    print()
+    print(f"{'Average GDP of Each Region':-^44}")
+    print()
+    print(df_region)
 
 #========================================================================================
 
@@ -564,9 +630,9 @@ if __name__ == "__main__":
         logger.addHandler(handler)
     
     buffer, fp = get_latest_log_with_pandas(log_file_path)
-
+    
     while True: # 가장 마지막으로 수행 완료된 Load 프로세스 로그 탐색
-        if len(buffer) == 0:  # 로그가 비어 있으면 종료
+        if not buffer:  # 로그가 비어 있으면 종료
             # print("로그 끝에 도달했지만 조건에 맞는 항목을 찾지 못했습니다.")
             break
 
@@ -585,55 +651,43 @@ if __name__ == "__main__":
         # 이전 로그 탐색
         buffer, fp = get_latest_log_with_pandas(log_file_path, seeker=fp)
         
+    try:    # check DB Connection
+        print("Connect DB ...")
+        
+        with sqlite3.connect('World_Economies.db') as conn:
+            print(f"Opened SQLite database with version {sqlite3.sqlite_version} successfully.")
+            c = conn.cursor()
 
-    # 최신 데이터 -> 갱신 과정 없이 데이터 제공
-    if  is_DB_Latest(buffer): 
-        print("You're looking latest DB")
-        
-        runner = Executer(conn = None)
-        runner.do_Transform()
-        
-        print(f"{'GDP Over 100B USD':-^34}")
-        print()
-        visualze_GDP_DESC_Over_100(runner.REFINED_DATA)
-        print()
-        print(f"{'Average GDP of Each Region':-^44}")        
-        print()
-        visualize_avg_GDP_by_Region(runner.REFINED_DATA)
-    
-    # 오래된 데이터 -> 갱신 필요    
-    else:
+    except sqlite3.OperationalError as e:
+        print("Failed to open database:", e) 
+          
+    # 오래된 데이터 -> 갱신 필요  
+    if not is_DB_Latest(buffer):  
         print("DB is outdated: Start Update ...")
 
         runner = Executer(conn = None) # Load process 전 까진 DB 연결할 일이 없다.
         
         runner.do_Extract()
         # print("Extracted")
+        
         runner.do_Transform()
         # print("Transformed")
         
-        try:    # check DB Connection
-            print("Connecting DB ...")
-            
-            with sqlite3.connect('World_Economies.db') as conn:
-                print(f"Opened SQLite database with version {sqlite3.sqlite_version} successfully.")
-                c = conn.cursor()
-
-        except sqlite3.OperationalError as e:
-            print("Failed to open database:", e)   
 
         runner.conn = conn
         runner.do_Load()
         # print("Loaded")
         
-        print(f"{'GDP Over 100B USD':-^34}")
-        print()
-        visualze_GDP_DESC_Over_100(runner.REFINED_DATA)
-        print()
-        print(f"{'Average GDP of Each Region':-^44}")        
-        print()
-        visualize_avg_GDP_by_Region(runner.REFINED_DATA)
+        print("SQL")
+        visualize_with_SQL(conn)
         
         conn.commit()
     
- 
+    # 최신 데이터 -> 갱신 과정 없이 데이터 제공
+    else: 
+        print("You're looking latest DB")
+
+        visualize_with_SQL(conn)
+    
+        
+    

@@ -1,6 +1,8 @@
-2025-January-09-12-10-23, Started, 'do_Extract'
-2025-January-09-12-10-24, Finished, 'do_Extract'
-2025-January-09-12-10-24, Started, 'do_Transform'
-2025-January-09-12-10-24, Finished, 'do_Transform'
-2025-January-09-12-10-24, Started, 'do_Load'
-2025-January-09-12-10-27, Finished, 'do_Load'
+2025-January-09-13-53-10, Started, do_Extract
+2025-January-09-13-53-11, Finished, do_Extract
+2025-January-09-13-53-11, Started, do_Transform
+2025-January-09-13-53-11, Finished, do_Transform
+2025-January-09-13-53-11, Started, do_Load
+2025-January-09-13-53-12, Finished, do_Load
+2025-January-09-13-55-34, Started, do_Transform
+2025-January-09-13-55-34, Finished, do_Transform
