@@ -1,15 +1,11 @@
-import requests
-from bs4 import BeautifulSoup# 크롤링
-import pandas as pd # 데이터 처리
-import json # to json file
-import datetime # logging
+import requests, re, datetime, logging, os, json # to json file
 import sqlite3 # DB
-import re
-import datetime
-import logging
+import pandas as pd # 데이터 처리
+from io import StringIO
+from bs4 import BeautifulSoup# 크롤링
 from functools import wraps
 from itertools import islice
-import os
+import dask.dataframe as dd
 
 # logger setting
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -24,8 +20,7 @@ db_name = 'World_Economies.db'
 db_path = os.path.join(current_dir, db_name)
 
 logger = logging.getLogger()
-# 테스트 로그 메시지
-# logger.info("This is a test log message.")
+
 #========================================================================================
 
 def is_within_5_months(past_year:int, past_month:int, latest_year:int, latest_month:int):
@@ -37,33 +32,106 @@ def is_within_5_months(past_year:int, past_month:int, latest_year:int, latest_mo
 
 #========================================================================================
 
-def get_latest_log_with_pandas(file_path:str, seeker:int = -1):
-    """
-    Pandas를 사용해 로그 파일의 마지막 로그를 가져옵니다.
-    로그 파일의 크기가 작다면 이쪽이 더 효율적입니다.
-    로그는 '년도, 작업_성공_여부, 작업' 형태로 구조화되어 있어야 합니다.
-    
-    Args:
-        file_path (str): 로그 파일 경로 (CSV 형식).
-        seeker (int): 읽을 로그 인덱스
-    Returns:
-        str: "년도 (int), 작업_성공_여부 (str), 작업 (str)"
-        int: 읽어온 로그의 직전 로그 인덱스
-    """
-    # 파일이 비어 있는지 확인
-    with open(file_path, 'r') as file:
-        file.seek(0, os.SEEK_END)
-        isempty = file.tell() == 0
-        file.seek(0)    # 파일 되감기
-        if isempty: 
-            return '', 0
+def save_Region_to_DB(conn: sqlite3.Connection, region_data:dict):
+    '''
+    Region data를 DB에 'Region_Category' 테이블로 저장합니다.
+    Args: 
+        region_data (dict)
+    '''
+    region_list = []
+    for region, countries in region_data.items():
+        for country in countries:
+            region_list.append({"Region": region, "Country": country})
+    region_df = pd.DataFrame(region_list)  
+            
+    try:            
+        region_df.to_sql('Region_Category', conn, if_exists='faiil')  
+
+    except ValueError as e:
+        print("Region Category already exists .")
+        pass
         
-    # 로그 파일을 Pandas DataFrame으로 읽기
-    df = pd.read_csv(file_path, header=None, names=['year', 'status', 'task'])
+    except sqlite3.OperationalError as e:
+        # "database is locked"와 같은 OperationalError 처리
+        if "database is locked" in str(e):
+            print(f"Error: Database is locked while trying to drop table .")
+        else:
+            print(f"OperationalError: {e}")
     
-    # 마지막 로그 가져오기
-    last_log = df.iloc[seeker]
-    return ",".join([last_log['year'], last_log['status'], last_log['task']]), seeker-1
+    except sqlite3.DatabaseError as e:
+        # 일반적인 데이터베이스 오류 처리
+        print(f"DatabaseError: {e}")
+    
+    except Exception as e:
+        # 다른 예외 처리
+        print(f"Unexpected error: {e}")
+    conn.commit()     
+
+
+def get_last_valid_log_with_position(file_path, start_pos=None):
+    with open(file_path, 'rb') as f:
+        if start_pos is not None:
+            f.seek(start_pos)  # 주어진 위치에서 시작
+
+        f.seek(0, 2)  # 파일 끝으로 이동
+        file_size = f.tell()  # 파일 크기 확인
+
+        # 만약 파일이 비어 있지 않다면 마지막 줄이 빈 라인인지 체크
+        last_pos = file_size
+        if file_size > 0:
+            f.seek(file_size - 1)  # 마지막 바이트로 이동
+
+            # 파일이 마지막 줄에서 \n으로 끝나는지 확인
+            last_byte = f.read(1)
+            if last_byte == b'\n':  # 마지막 줄이 빈 라인이라면
+                last_pos = f.tell() - 1  # 커서를 한 줄 위로 옮김
+
+        return last_pos  # 새로운 커서 위치 반환
+# def get_latest_log_with_pandas(file_path:str, seeker:int = -1):
+#     """
+#     Pandas를 사용해 로그 파일의 마지막 로그를 가져옵니다.
+#     로그 파일의 크기가 작다면 이쪽이 더 효율적입니다.
+#     로그는 '년도, 작업_성공_여부, 작업' 형태로 구조화되어 있어야 합니다.
+    
+#     Args:
+#         file_path (str): 로그 파일 경로 (CSV 형식).
+#         seeker (int): 읽을 로그 인덱스
+#     Returns:
+#         str: "년도 (int), 작업_성공_여부 (str), 작업 (str)"
+#         int: 읽어온 로그의 직전 로그 인덱스
+#     """
+#     # 파일이 비어 있는지 확인
+#     with open(file_path, 'r') as file:
+#         file.seek(0, os.SEEK_END)
+#         isempty = file.tell() == 0
+#         file.seek(0)    # 파일 되감기
+#         if isempty: 
+#             return '', 0
+        
+    
+#     # 로그 파일을 Pandas DataFrame으로 읽기
+#     df = pd.read_csv(file_path, header=None, names=['year', 'status', 'task'])
+#     df = df.dropna(how='all').reset_index(drop=True)
+
+#     # 마지막 로그 가져오기
+#     # 로그가 불완전할 경우 끝까지 읽다 터지는 것 방지
+#     try:
+#         last_log = df.iloc[seeker] if not df.empty else None
+#         if last_log is None or last_log.isnull().all():
+#         # 마지막 로그가 공백일 경우, 이전 로그 찾기
+#             last_log = df.iloc[-2] if len(df) > 1 else None
+            
+#     except IndexError as e:
+#         print("마지막 로그까지 읽었습니다. 잘못된 로그가 있을 가능성이 높습니다.")
+#         # 공백 로그를 확인하고 이전 로그를 가져오기
+#         if seeker == -1:
+#             seeker -= 1
+#             last_log = df.iloc[seeker] if len(df) > abs(seeker) else None
+#             print(f"대체된 마지막 로그: {last_log}")
+#             return ",".join([last_log['year'], last_log['status'], last_log['task']]), seeker
+#         return '', 0 # <-- 로그가 잘못되었으니 일단 데이터를 새로 갱신 시도
+    
+#     return ",".join([last_log['year'], last_log['status'], last_log['task']]), seeker-1
 
 #========================================================================================
 
@@ -112,12 +180,12 @@ def get_latest_log(file_path, start_position=None):
       
 def is_DB_Latest(log: str):
     '''
+    ### !! IMF는 4, 10월에 데이터를 갱신 !!
     로그 기반으로 데이터 최신화 필요성을 검증합니다.
     마지막 데이터 저장 이후 5개월 초과 | 마지막 로그에 문제가 있었을 경우 False를 반환합니다.
     Args: log: str
     return: bool
     '''
-    # !! IMF는 4, 10월에 데이터를 갱신한다 !!
     
     if len(log) == 0: return False
     now = datetime.datetime.now().strftime("%Y-%m")
@@ -128,6 +196,40 @@ def is_DB_Latest(log: str):
     log_month = int(datetime.datetime.strptime(log_month, '%B').month)
 
     return is_within_5_months(log_year, log_month, now_Y, now_m)
+
+#========================================================================================
+
+def check_columns_exist(conn:sqlite3.Connection, db_path:str, columns_to_check:str, table_name:str ='Gdp_past'):
+    # 데이터베이스 연결
+    conn = conn
+    cursor = conn.cursor()
+    
+    # PRAGMA table_info()로 컬럼 정보 가져오기
+    try:
+        cursor.execute(f"PRAGMA table_info({table_name})")
+        table_info = cursor.fetchall()
+    except:
+        print("Data NOT Exists")
+        return False
+    
+    # 컬럼 이름만 추출
+    column_names = [column[1] for column in table_info]  # column[1]은 컬럼 이름
+    
+    # 확인하려는 컬럼이 존재하는지 검사
+    result = columns_to_check in column_names
+    
+    # 연결 종료
+    cursor.close()
+    
+    return result
+
+# # 사용 예시
+# db_path = "example.db"  # SQLite 데이터베이스 파일 경로
+# table_name = "my_table"  # 확인하려는 테이블 이름
+# columns_to_check = ['yyyy', 'yyyy-1']  # 확인하려는 컬럼 이름들
+
+# result = check_columns_exist(db_path, table_name, columns_to_check)
+# print(result) >>> {'yyyy': True, 'yyyy-1': False}
 
 #========================================================================================
   
@@ -177,7 +279,7 @@ class Extract:
             year: int (현재년도)
         
         Returns:
-            gdps (dict {country : GDP})
+            gdps (pd.DataFrame {country | GDP})
         '''
         year = year
         nameURL = 'https://www.imf.org/external/datamapper/api/v1/countries'
@@ -200,6 +302,8 @@ class Extract:
                 gdps[namedict[k]['label']] = round(v[year], 2)
                 # else:
                     # gdps[namedict[k]['label']] = -1
+        gdps = pd.DataFrame({'Country': list(gdps.keys()), 'GDP_USD_bilion': list(gdps.values())})
+        # print(gdps)
         return gdps
     
     def save_json(self, url: str):
@@ -210,7 +314,7 @@ class Extract:
             url (str)
         '''
         # 첫 번째 테이블을 가져옵니다 (여러 테이블이 있을 수 있으므로 인덱스로 선택)
-        df = pd.read_html(url, attrs={"class": "wikitable"})[0]
+        df = pd.read_html(StringIO(url), attrs={"class": "wikitable"})[0]
          
         # MultiIndex 생성
         columns = [
@@ -300,8 +404,11 @@ class Transform:
         GDP_data.sort_values(by=('GDP_USD_bilion'), ascending=False, inplace=True)
         
         # 소수점 둘째자리까지 보이기   
-        GDP_data['GDP_USD_bilion'] = (GDP_data['GDP_USD_bilion']/1000).round(2)
-        
+        GDP_data['GDP_USD_bilion'] = (GDP_data['GDP_USD_bilion'] / 1000).round(2)
+        # 메모리에 못 올릴 정도로 대규모 데이터일 경우 : dask를 이용한 분산처리 
+        # ddf = dd.from_pandas(df, npartitions=4)  # 데이터프레임을 분할
+        # ddf['column_name'] = (ddf['column_name'] / 1000).round(2)
+        # df = ddf.compute()  # 결과를 다시 pandas로 변환
         return GDP_data      
 
 #========================================================================================
@@ -309,16 +416,21 @@ class Transform:
 class Load:
     frame = None
     conn = None
-    def __init__(self, frame:pd.DataFrame, conn):
+    request_year = ''
+    log = ''
+    def __init__(self, frame:pd.DataFrame, conn:sqlite3.Connection, request_old_data:str = '', log:str = ''):
         '''
         데이터프레임을 저장하기 위해 가공된 데이터프레임을 불러옵니다.
         Args: 
             frame (pd.DataFrame)
             conn (sqlite3.Connection)
+            rq_date (str)
+            log (str)
         '''
         self.frame = frame    
         self.conn = conn    
-
+        self.request_year = request_old_data
+        self.log = log
     #========================================================================================
 
     def save_GDP_to_DB(self,):
@@ -335,29 +447,164 @@ class Load:
             print("Something Wrong With Saving Data to DB: ", e)
         
         self.conn.commit()
+        
     #====================================================================================
-
-    def save_Region_to_DB(self, region_data:dict):
+    
+    def latest_data_backup(self, conn:sqlite3.Connection):
         '''
-        Region data를 DB에 'Region_Category' 테이블로 저장합니다.
+        DB 갱신 시 현 최신 데이터를 과거 데이터 테이블로 백업합니다.
+        백업된 데이터는 Past_Data table에 
+        Country | Year-2 | Year-1 | ... 형식으로 저장됩니다. 
+        (1,2는 상/하반기)
         Args: 
-            region_data (dict)
+            conn (sqlite3.Connection)
         '''
-        region_list = []
-        for region, countries in region_data.items():
-            for country in countries:
-                region_list.append({"Region": region, "Country": country})
-        region_df = pd.DataFrame(region_list)  
-              
-        # try:
-        #     with sqlite3.connect(db_path) as conn:
-        #         print(f"Opened SQLite database with version {sqlite3.sqlite_version} successfully.")
+        saved_date = self.log
+        cursor = conn.cursor()
+        
+        # 4 / 10월 데이터 판단
+        saved_date = datetime.datetime.strptime(saved_date, "%Y-%B-%d-%H-%M-%S")
+        saved_y = saved_date.year
+        saved_m = saved_date.month
+        
+        if saved_m <= 4:          
+            saved_y -= 1
+            saved_m = 2 # past year 11 ~ now 4
+        elif 4 < saved_m <= 10:
+            saved_m = 1 # now 5 ~ 10
+        else:
+            saved_m = 2 # now 11 ~ 12
+                
+        
+        # 'gdp_past' 테이블이 없는 경우 생성
+        cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS Gdp_past (
+            Country TEXT PRIMARY KEY
+        )
+        """)
 
-        # except sqlite3.OperationalError as e:
-        #     print("Failed to open database:", e)
+        # 'gdp_past' 테이블에 현재 날짜 컬럼 추가 (없는 경우)
+        alter_query = f"ALTER TABLE Gdp_past ADD COLUMN GDP_{saved_y}_{saved_m} REAL"
+        try:
+            cursor.execute(alter_query)
+        except sqlite3.OperationalError:
+            # 컬럼이 이미 존재할 경우 예외를 무시
+            pass
+        
+        
+        
+        
+        # wiki데이터가 null인 국가를 imf api로 저장한 과거데이터에 넣을 시 대처법 생각하기
+        # 'gdp_now'에만 있는 country를 'gdp_past'에 NULL 값으로 추가
+        cursor.execute("""
+        INSERT INTO Gdp_past (Country)
+        SELECT Country
+        FROM Countries_by_GDP
+        WHERE NOT EXISTS (SELECT 1 FROM Gdp_past WHERE Gdp_past.Country = Countries_by_GDP.Country)
+        """)
+
+        print("여기까진 된다??")    
+        
+        # 'gdp_now' 데이터를 'gdp_past'에 삽입 (horizontal 저장)
+        cursor.execute(f"""
+        INSERT INTO Gdp_past (Country, GDP_{saved_y}_{saved_m})
+        SELECT Country, GDP_USD_bilion
+        FROM Countries_by_GDP
+        ON CONFLICT(Country) DO UPDATE 
+        SET GDP_{saved_y}_{saved_m} = excluded.GDP_USD_bilion;
+        """)
+        
+        print(f"{saved_y}_{saved_m} data stored in backup table")
+
+    #====================================================================================
+    
+    #====================================================================================
+    
+    def add_past_data(self, conn:sqlite3.Connection):
+        cursor = conn.cursor()
+        saved_y = self.request_year.split('-')[0]
+        
+        # 'gdp_past' 테이블이 없는 경우 생성
+        cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS Gdp_past (
+            Country TEXT PRIMARY KEY
+        )
+        """)
+
+        # 'gdp_past' 테이블에 현재 날짜 컬럼 추가 (없는 경우)
+        alter_query = f"ALTER TABLE Gdp_past ADD COLUMN GDP_{saved_y} REAL"
+        try:
+            cursor.execute(alter_query)
+        except sqlite3.OperationalError:
+            # 컬럼이 이미 존재할 경우 예외를 무시
+            pass
+
+        # wiki데이터가 null인 국가를 imf api로 저장한 과거데이터에 넣을 시 대처법 생각하기
+        # 'gdp_now'에만 있는 country를 'gdp_past'에 NULL 값으로 추가
+        # cursor.execute("""
+        # INSERT INTO Gdp_past (Country)
+        # SELECT Country
+        # FROM Countries_by_GDP
+        # WHERE Country NOT IN (SELECT Country FROM Gdp_past)
+        # """)
+                
+        # 백업용 데이터베이스 테이블에서 'Country' 컬럼 가져오기
+        db_table = 'Gdp_past'
+        db_data = pd.read_sql_query(f"SELECT * FROM {db_table} ORDER BY Country ASC", conn)
+
+        # 데이터프레임 가져오기
+        df = self.frame
+
+        
+        
+        # 데이터프레임과 데이터베이스 매칭
+        db_data = db_data.merge(df, on='Country', how='left') # 없는 값들은 NULL로 채움
+        print(db_data)
+
+        # 데이터베이스 테이블 업데이트
+        for _, row in db_data.iterrows():
+            cursor.execute(f"""
+                UPDATE {db_table}
+                SET GDP_{saved_y} = ?
+                WHERE Country = ?
+            """, (row[f'GDP_{saved_y}'], row['Country']))
+    
+    #====================================================================================
+        
+    # def save_Region_to_DB(self, region_data:dict):
+    #     '''
+    #     Region data를 DB에 'Region_Category' 테이블로 저장합니다.
+    #     Args: 
+    #         region_data (dict)
+    #     '''
+    #     region_list = []
+    #     for region, countries in region_data.items():
+    #         for country in countries:
+    #             region_list.append({"Region": region, "Country": country})
+    #     region_df = pd.DataFrame(region_list)  
+              
+    #     try:            
+    #         region_df.to_sql('Region_Category', self.conn, if_exists='faiil')  
+
+    #     except ValueError as e:
+    #         print("Region Category already exists .")
+    #         pass
             
-        region_df.to_sql('Region_Category', self.conn, if_exists='replace')  
-        self.conn.commit()     
+    #     except sqlite3.OperationalError as e:
+    #         # "database is locked"와 같은 OperationalError 처리
+    #         if "database is locked" in str(e):
+    #             print(f"Error: Database is locked while trying to drop table .")
+    #         else:
+    #             print(f"OperationalError: {e}")
+        
+    #     except sqlite3.DatabaseError as e:
+    #         # 일반적인 데이터베이스 오류 처리
+    #         print(f"DatabaseError: {e}")
+        
+    #     except Exception as e:
+    #         # 다른 예외 처리
+    #         print(f"Unexpected error: {e}")
+    #     self.conn.commit()     
 
 #========================================================================================
          
@@ -424,8 +671,11 @@ def visualze_GDP_DESC_Over_100(gdp_data: dict):
     df = pd.DataFrame(gdp_data)
     df.sort_values('GDP_USD_bilion', ascending=False, inplace=True)
     df = df[df['GDP_USD_bilion'] >= 100]
-    df['GDP_USD_bilion'] = (df['GDP_USD_bilion']).round(2)
-    
+    df['GDP_USD_bilion'] = (df['GDP_USD_bilion'] / 1000).round(2)
+    # 메모리에 못 올릴 정도로 대규모 데이터일 경우 : dask를 이용한 분산처리 
+    # ddf = dd.from_pandas(df, npartitions=4)  # 데이터프레임을 분할
+    # ddf['column_name'] = (ddf['column_name'] / 1000).round(2)
+    # df = ddf.compute()  # 결과를 다시 pandas로 변환    
     print(df)
 
 #========================================================================================
@@ -465,6 +715,10 @@ def visualize_avg_GDP_by_Region(gdp_data:dict):
     
     # Step 5: Region 별 상위 5개 GDP 평균 구하기
     region_avg_gdp = top_5_by_region.groupby("Region")["GDP_USD_bilion"].mean().reset_index().round(2)
+    # 메모리에 못 올릴 정도로 대규모 데이터일 경우 : dask를 이용한 분산처리 
+    # ddf = dd.from_pandas(df, npartitions=4)  # 데이터프레임을 분할
+    # ddf['column_name'] = (ddf['column_name'] / 1000).round(2)
+    # df = ddf.compute()  # 결과를 다시 pandas로 변환    
     region_avg_gdp.columns = ["Region", "@5_GDP_Avg"]
     
     print(region_avg_gdp)
@@ -505,6 +759,12 @@ def visualize_with_SQL(connection:sqlite3.Connection):
         df_region (pd.DataFrame)
     '''
     conn = connection
+    # try:
+    #     with sqlite3.connect(db_path) as conn:
+    #         print(f"Opened SQLite database with version {sqlite3.sqlite_version} successfully.")
+    #         cursor = conn.cursor()
+    # except sqlite3.OperationalError as e:
+    #     print("Failed to open database:", e)
 
     sql_region = '''
     WITH RankedCountries AS (
@@ -553,22 +813,31 @@ def visualize_with_SQL(connection:sqlite3.Connection):
 
 class Executer:
     conn = None
-    
+    old_data_request = ''
     REFINED_DATA = None
+    old_data = None
     
-    def __init__(self, conn:sqlite3.Connection):
+    def __init__(self, conn:sqlite3.Connection, old_data_request:str = ''):
         self.conn = conn
+        self.old_data_request = old_data_request
         self.REFINED_DATA = None
+        self.old_data = None
         
     #====================================================================================        
     
     @logging_time
     def do_Extract(self,):
-        
-        E = Extract() 
-        wiki_html = url_validation_check(E.WIKI_URL) # 웹 페이지 추출
-        # self.wiki_data = E.collect_data(wiki_html) # 데이터 수집
-        E.save_json(wiki_html) # JSON 저장
+        if self.old_data_request: # db에 없는 데이터를 요청 시
+            print(f"Fetching {self.old_data_request.split('-')[0]} Data From IMF API ...")
+            E = Extract()
+            # API로 받은 데이터는 정제된 정제된 데이터 형식과 일치하므로 바로 Load로 보낸다.
+            self.old_data = E.data_from_IMF(self.old_data_request.split('-')[0])
+
+        else:
+            E = Extract() 
+            wiki_html = url_validation_check(E.WIKI_URL) # 웹 페이지 추출
+            # self.wiki_data = E.collect_data(wiki_html) # 데이터 수집
+            E.save_json(wiki_html) # JSON 저장
         
     #====================================================================================
     
@@ -582,27 +851,51 @@ class Executer:
     #====================================================================================    
     
     @logging_time 
-    def do_Load(self,):
+    def do_Load(self, latest_log:str = ''):
         # dataframe = REFINED_DATA
-        
+        latest_log = latest_log
         c = self.conn.cursor()
-        tables = c.execute("SELECT name FROM sqlite_master WHERE type='table';").fetchall()
+        # tables = c.execute("SELECT name FROM sqlite_master WHERE type='table';").fetchall()
         
-        L = Load(self.REFINED_DATA, self.conn)
-        L.save_GDP_to_DB()
         
-        if 'Region_Category' in tables:
-            pass
+                
+        if not self.old_data_request:
+        # 1. 최신 데이터를 백업하는 상황
+            print("최신 데이터를 백업")
+            L = Load(self.REFINED_DATA, self.conn, log=latest_log)
+            # if 'Region_Category' not in tables:
+                # url = 'https://www.imf.org/external/datamapper/region.htm#sea'
+                # L.save_Region_to_DB(region_categorize(url_validation_check(url)))
+            L.latest_data_backup(conn=self.conn)
+            L.save_GDP_to_DB()
+        
         else:
-            url = 'https://www.imf.org/external/datamapper/region.htm#sea'
-            L.save_Region_to_DB(region_categorize(url_validation_check(url)))
+        # 2. 과거 데이터를 추가하는 상황
+            print("과거 데이터를 추가")
+            L = Load(self.REFINED_DATA, self.conn, self.old_data_request)
+            L.frame = self.old_data
+            # if 'Region_Category' not in tables:
+            #     url = 'https://www.imf.org/external/datamapper/region.htm#sea'
+            #     L.save_Region_to_DB(region_categorize(url_validation_check(url)))            
+            L.add_past_data(self.conn)
         
 #========================================================================================
 '''
-TODO: 갱신 시 오래된 데이터 따로 빼기
+TODO: 
+    : 갱신 시 오래된 데이터 따로 빼기
 '''
 if __name__ == "__main__":
-    if not logger.handlers: # logger 생성
+    
+    pattern = r'^\d{4}(-[1-2])?$'
+    while True: # 과거 데이터 출력 여부
+        print("최신 데이터를 원하시면 엔터를,")
+        print("과거 데이터를 원하시면 해당 년도(1980 ~ )와 상/하반기 구분을 입력하세요 yyyy-1 | yyyy-2")
+        print("해당 년도의 데이터가 1건 뿐인 경우 그것을 출력합니다.")
+        needs = input("입력: ")
+        if needs == '' or bool(re.match(pattern, needs)):
+            break
+    
+    if not logger.handlers:
         # 사용자 정의 Formatter
         formatter = logging.Formatter(
             fmt='%(asctime)s, %(message)s',
@@ -616,54 +909,30 @@ if __name__ == "__main__":
         # 로거 설정
         logger.setLevel(logging.INFO)
         logger.addHandler(handler)
-    
-    '''TODO: 
-    # 코드 갈아엎는 중... 
-        메인 함수 동작: 
-        
-        <<< 조회할 데이터의 기간 입력받음
-        커넥션 객체(메인용) 생성
-        메인 DB에 Region 테이블 확인 후 없으면 만들기 (어차피 region별 데이터 보려면 있어야 함)
-        - E, T, L
+    fp = get_last_valid_log_with_position(log_file_path)
 
-        최신 데이터 입력 (‘’)<-엔터키
-            있다 -> 보여준다 
-            없다 -> 커넥션 객체(백업용) 생성
-                현 데이터 백업 / 로그 필요, L
-                최신 데이터 추출, 변환 - E / 현재 날짜 필요, T
-                메인 디비에 저장하고 - L / 현재 날짜 필요
-                보여준다 - T 결과물 활용
+    buffer, fp = get_latest_log(log_file_path, fp)
 
-        과거 데이터 입력 (yyyy, yyyy-1, yyyy-2)
-            있다 -> 보여준다 / 인풋 그대로 가져감
-            없다 -> 커넥션 객체 (백업용) 생성
-                추출, 변환- E / 인풋 그대로 가져감 , T
-                백업 디비에 저장 - L / 인풋 그대로 가져감
-                보여준다 - T 결과물 활용  
-    '''
-    # 마지막 정상적으로 수행된 Load의 로그 가져오기
-    buffer, fp = get_latest_log_with_pandas(log_file_path)
-    
-    
     while True: # 가장 마지막으로 수행 완료된 Load 프로세스 로그 탐색
-        if not buffer:  # 로그가 비어 있으면 종료
+        if buffer == '':  # 로그가 비어 있으면 종료
+            print("버퍼가 비었다.")
             # print("로그 끝에 도달했지만 조건에 맞는 항목을 찾지 못했습니다.")
             break
 
         # 최신 로그에서 `마지막으로 수행된 프로세스`와 `프로세스 완료 여부` 추출
         try:
-            completion, process = buffer.split(', ')[-2:]  # 로그가 예상 형식일 경우
+            completion, process = buffer.split(',')[-2:]  # 로그가 예상 형식일 경우
         except ValueError:
             print(f"잘못된 로그 형식: {buffer}")
             break
 
         # 조건 충족 시 종료
         if completion == 'Finished' and process == 'do_Load':
-            # print(f"조건을 충족하는 로그 발견: {buffer}")
+            print(f"조건을 충족하는 로그 발견: {buffer}")
             break
 
         # 이전 로그 탐색
-        buffer, fp = get_latest_log_with_pandas(log_file_path, seeker=fp)
+        buffer, fp = get_latest_log(log_file_path, fp)
         
     try:    # check DB Connection
         print("Connect DB ...")
@@ -675,29 +944,48 @@ if __name__ == "__main__":
     except sqlite3.OperationalError as e:
         print("Failed to open database:", e) 
           
-    # 오래된 데이터 -> 갱신 필요  
-    if not is_DB_Latest(buffer):  
+    save_Region_to_DB(conn, region_categorize(url_validation_check('https://www.imf.org/external/datamapper/region.htm#sea')))      
+
+    # 과거 데이터 요청 시
+    if needs != '':
+        # DB에 있는지 먼저 확인
+        print("Checking Past Data ...")
+        
+        # 없다면?
+        if not check_columns_exist(conn, db_path, needs, ): 
+            print("Fetching Past Data ...")
+            runner = Executer(conn=conn, old_data_request=needs)
+            runner.do_Extract()
+            runner.do_Load()
+            conn.commit()
+            conn.close()
+            #  시각화
+        
+        # 있다면
+        # 시각화
+        
+              
+    # 최신 데이터 요청 시          
+        # 오래된 데이터 -> 갱신 필요  
+    elif needs == '' and not is_DB_Latest(buffer):  
         print("DB is outdated: Start Update ...")
 
         runner = Executer(conn = None) # Load process 전 까진 DB 연결할 일이 없다.
-        
         runner.do_Extract()
         # print("Extracted")
-        
         runner.do_Transform()
         # print("Transformed")
         
-
         runner.conn = conn
-        runner.do_Load()
+        runner.do_Load(latest_log=str(datetime.datetime.now().strftime("%Y-%B-%d-%H-%M-%S"))) # back-up & update
         # print("Loaded")
         
-        print("SQL")
         visualize_with_SQL(conn)
         
         conn.commit()
-    
-    # 최신 데이터 -> 갱신 과정 없이 데이터 제공
+        conn.close()
+        
+        # 최신 데이터 -> 갱신 과정 없이 데이터 제공
     else: 
         print("You're looking latest DB")
 
@@ -705,3 +993,4 @@ if __name__ == "__main__":
     
         
     
+  

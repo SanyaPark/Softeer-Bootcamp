@@ -10,6 +10,7 @@ import logging
 from functools import wraps
 from itertools import islice
 import os
+from io import StringIO
 
 # logger setting
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -24,8 +25,7 @@ db_name = 'World_Economies.db'
 db_path = os.path.join(current_dir, db_name)
 
 logger = logging.getLogger()
-# 테스트 로그 메시지
-# logger.info("This is a test log message.")
+
 #========================================================================================
 
 def is_within_5_months(past_year:int, past_month:int, latest_year:int, latest_month:int):
@@ -62,7 +62,13 @@ def get_latest_log_with_pandas(file_path:str, seeker:int = -1):
     df = pd.read_csv(file_path, header=None, names=['year', 'status', 'task'])
 
     # 마지막 로그 가져오기
-    last_log = df.iloc[seeker]
+    # 로그가 불완전할 경우 끝까지 읽다 터지는 것 방지
+    try:
+        last_log = df.iloc[seeker]
+    except IndexError as e:
+        print("마지막 로그까지 읽었습니다. 잘못된 로그가 있을 가능성이 높습니다.")
+        return '', 0 # <-- 로그가 잘못되었으니 일단 데이터를 새로 갱신 시도
+    
     return ",".join([last_log['year'], last_log['status'], last_log['task']]), seeker-1
 
 #========================================================================================
@@ -169,20 +175,6 @@ class Extract:
         self.WIKI_URL = 'https://en.wikipedia.org/wiki/List_of_countries_by_GDP_%28nominal%29'
         self.IMF_URL = 'https://www.imf.org/external/datamapper/api/v1/NGDPD'
     
-    # def collect_data(self, html: str):
-    #     '''
-    #     원본 데이터 수집 함수
-    #     국가별 자료입니다. 형식: [[국가명, GDP, 연도, GDP, 연도, GDP, 연도] ... ] 
-    #     Args: html: str
-    #     return: gdp_rows: List 
-    #     '''
-    #     soup = BeautifulSoup(html, 'html.parser')
-    #     table = soup.select('table.wikitable > tbody > tr:nth-child(n+4)')#.wikitable sortable sticky-header-multi static-row-numbers jquery-tablesorter')
-    #     # tr, td 등의 tag가 변수 취급이 가능하구나
-    #     gdp_rows = [[td.get_text(strip=True) for td in tr.find_all('td')] for tr in table]
-
-    #     return gdp_rows
-    
     def data_from_IMF(self, year = now_year):
         '''
         현재 년도의 IMF의 API를 이용하여 데이터를 추출합니다.
@@ -218,7 +210,7 @@ class Extract:
         Args: url: str
         '''
         # 첫 번째 테이블을 가져옵니다 (여러 테이블이 있을 수 있으므로 인덱스로 선택)
-        df = pd.read_html(url, attrs={"class": "wikitable"})[0]
+        df = pd.read_html(StringIO(url), attrs={"class": "wikitable"})[0]
          
         # MultiIndex 생성
         columns = [
@@ -301,7 +293,7 @@ class Transform:
         GDP_data.sort_values(by=('GDP_USD_bilion'), ascending=False, inplace=True)
         
         # 소수점 둘째자리까지 보이기   
-        GDP_data['GDP_USD_bilion'] = GDP_data['GDP_USD_bilion'].apply(lambda x: round(x / 1000, 2))
+        GDP_data['GDP_USD_bilion'] = (GDP_data['GDP_USD_bilion']/1000).round(2)
         
         return GDP_data      
 
@@ -424,7 +416,6 @@ def visualze_GDP_DESC_Over_100(gdp_data: dict):
     df = pd.DataFrame(gdp_data)
     df.sort_values('GDP_USD_bilion', ascending=False, inplace=True)
     df = df[df['GDP_USD_bilion'] >= 100]
-    df['GDP_USD_bilion'] = df['GDP_USD_bilion'].apply(lambda x: round(x / 1000, 2))
     
     print(df)
 
@@ -462,7 +453,7 @@ def visualize_avg_GDP_by_Region(gdp_data:dict):
     )
     
     # Step 5: Region 별 상위 5개 GDP 평균 구하기
-    region_avg_gdp = top_5_by_region.groupby("Region")["GDP_USD_bilion"].mean().reset_index().apply(lambda x: round(x, 2))
+    region_avg_gdp = top_5_by_region.groupby("Region")["GDP_USD_bilion"].mean().reset_index().round(2)
     region_avg_gdp.columns = ["Region", "@5_GDP_Avg"]
     
     print(region_avg_gdp)
@@ -544,7 +535,7 @@ class Executer:
         
 #========================================================================================
 '''
-TODO: gdp 저장 시 나라이름순 정렬
+TODO: 
     : 갱신 시 오래된 데이터 따로 빼기
 '''
 if __name__ == "__main__":
@@ -635,5 +626,6 @@ if __name__ == "__main__":
         visualize_avg_GDP_by_Region(runner.REFINED_DATA)
         
         conn.commit()
+        conn.close()
     
  
