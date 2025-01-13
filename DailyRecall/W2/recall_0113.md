@@ -1,7 +1,7 @@
-# 하루 회고
+# 🌅 하루 감상
 
-## 배운 것
-### Try
+## 📚 배운 것
+### 🏃‍♂️ Try
 10개 원소가 든 큐에서 4개 프로세스가 작업을 가져갈 때 로그를 찍어보니
 empty_queue가 4번 발생하고 각 프로세스가 한 번씩 발생시킨다는 것을 알았다.
 분석 결과
@@ -27,6 +27,6 @@ empty_queue가 4번 발생하고 각 프로세스가 한 번씩 발생시킨다�
 멀티프로세싱은 GIL의 영향을 받지 않아 CPU-bound 작업에 효과적이다.
 
 jupyter notebook에서 AttributeError: Can't get attribute 'pull_task' on <module '__main__' (built-in)> 에러가 발생한다.
->내일 찾아볼 것: jupyter에서는 if __name__ == "__main__"이 없으면 어떻게 하지.. 
+> ⚠️ 내일 찾아볼 것: jupyter에서는 if __name__ == "__main__"이 없으면 어떻게 하지.. 
 
 **python multiprocessing 관련 정보는 위키에 게재하는 편이 파편화를 막고 더 응집성 있게 정보를 정리할 수 있을 것 같다.**
