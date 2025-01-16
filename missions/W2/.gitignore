@@ -223,5 +223,9 @@ pyrightconfig.json
 .history
 .ionide
 
+# fonts
+D2Coding-Ver1.3.2-20180524.ttf
+.ttc
+
 # End of https://www.toptal.com/developers/gitignore/api/macos,python,visualstudiocode
 training.1600000.processed.noemoticon.csv

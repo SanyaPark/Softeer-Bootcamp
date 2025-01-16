@@ -10,13 +10,13 @@ def pull_task(pull_q:Queue, push_q:Queue, lock):
                 num = pull_q.get_nowait()
         
         except queue.Empty as e:
-            print(f"Queue is empty: {current_process().name}", e)
+            # print(f"Queue is empty: {current_process().name}", e)
             break
         
         else:
             time.sleep(0.5)
-            push_q.put(msg := f"작업 번호 {num}은 {current_process().name}에 의해 수행됨")
-            print(f"Push {num} by {current_process().name}")
+            push_q.put(msg := f"Task no {num} is done by {current_process().name}")
+            # print(f"Push {num} by {current_process().name}")
     
     
 if __name__ == "__main__":
@@ -27,7 +27,7 @@ if __name__ == "__main__":
     lock = Lock()
     
     for i in range(10):
-        print(f"작업 번호 {i}")
+        print(f"Task no {i}")
         tasks_to_accomplish.put(i)
         
                
