@@ -30,13 +30,13 @@ Host ec2_주소
   Port 22
 ```
 
-| 특징 |	docker-compose up |	./run_jupyter.sh |
+| 특징 |	.yaml |	.sh |
 |------|---|---|
 | 사용 파일             |	docker-compose.yml 파일 사용 | 	쉘 스크립트 파일(.sh) 사용 |
 | 멀티 컨테이너 지원	  | 여러 서비스를 동시에 실행 가능	| 단일 컨테이너 실행에 적합 |
 | 설정 관리         	| 설정 파일에서 모든 옵션 정의	| 명령어 옵션을 직접 입력 |
 | 확장성            	| 쉽게 확장 가능 (네트워크, 환경 변수 포함)	| 복잡한 설정 시 관리가 어려움 |
-| 실행 명령	docker-compose up	| ./run_jupyter.sh |
+| 실행 명령	| docker-compose up	| ./run_jupyter.sh |
 | 종료 명령(ctrl C 이후)	| docker-compose down	| 없음 |
 
 .sh 파일은 실행권한 확보 : chmod +x run_jupyter.sh<br>

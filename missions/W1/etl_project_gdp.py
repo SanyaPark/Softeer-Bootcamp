@@ -199,7 +199,8 @@ class Extract:
         for k, v in gdpdict.items():
             if k in namedict.keys(): # gdpdict에는 국가 이외의 대륙 분류 등이 섞여있음
                 # if year in v.keys():
-                gdps[namedict[k]['label']] = round(v[year], 2)
+                gdps[namedict[k]['label']] = round(v[year], 2)  # --> 이 round() 처리가 Extract에 있어야 할까?
+                                                                # Extract에서는 원본만!!
                 # else:
                     # gdps[namedict[k]['label']] = -1
         return gdps
@@ -287,7 +288,7 @@ class Transform:
         '''
         country = self.country
         gdp = self.gdp
-        GDP_data = pd.DataFrame({'Country':country, 'GDP_USD_bilion':gdp})
+        GDP_data = pd.DataFrame({'Country':country, 'GDP_USD_bilion':gdp})  # --> 여기까진 Million 단위지만 너는 bilion이라고 컬럼 이름을 정했다.
         
         # GDP 내림차순 정렬
         GDP_data.sort_values(by=('GDP_USD_bilion'), ascending=False, inplace=True)
@@ -333,7 +334,7 @@ class Load:
         self.conn.commit()
     #====================================================================================
 
-    def save_Region_to_DB(self, region_data:dict):
+    def save_Region_to_DB(self, region_data:dict): #  --> Transform으로 가야 한다.
         '''
         Region data를 DB에 'Region_Category' 테이블로 저장합니다.
         Args: region_data: dict
