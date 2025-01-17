@@ -1,7 +1,7 @@
 # Python Multiprocessing
 
 ```import multiprocessing```
-→ → → → → → → → → → → → → → → → → → → → → → 
+
 ## Pool과 Process의 차이?
 
 | 특징 | Pool | Process |
@@ -310,7 +310,7 @@ func는 multiprocess.Queue와 int를 받아서 Queue에 int를 넣는 작업을 
 ---
 
 # Docker
- → → → → → →
+
 ## Dockerfile
 이미지 빌드 시 컴파일러에 가깝게 동작하는데,
 얘를 어떻게 `interactive` 하게 만들까??
