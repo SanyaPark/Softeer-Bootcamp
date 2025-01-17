@@ -177,7 +177,7 @@ class Extract:
     
     def data_from_IMF(self, year = now_year):
         '''
-        현재 년도의 IMF의 API를 이용하여 데이터를 추출합니다.
+        현재 년도의 IMF의 API를 이용하여 데이터를 추출합니다.   
         Args: year: int (현재년도)
         return: gdps: dict {country : GDP}
         '''
