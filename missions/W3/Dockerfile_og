@@ -1,0 +1,72 @@
+# 기본 이미지 환경
+# 베이스 : Ubuntu 24.04
+FROM ubuntu:24.04 AS hadoop_base
+
+# 하둡 버전과 디렉토리 지정 및 JAVA 환경변수 설정
+ENV HADOOP_VERSION=3.3.6 \
+    HADOOP_HOME=/usr/local/hadoop \
+    HADOOP_CONF_DIR=/usr/local/hadoop/etc/hadoop \
+    JAVA_HOME=/usr/lib/jvm/java-11-openjdk-arm64 
+
+ENV PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin
+
+RUN apt-get update && \
+    apt-get install -y openjdk-11-jdk ssh curl rsync locales && \
+    apt-get clean
+
+# 하둡 설치
+RUN curl -O https://dlcdn.apache.org/hadoop/common/hadoop-$HADOOP_VERSION/hadoop-$HADOOP_VERSION.tar.gz && \
+    tar -xzvf hadoop-$HADOOP_VERSION.tar.gz && \
+    mv hadoop-$HADOOP_VERSION /usr/local/hadoop && \
+    rm hadoop-$HADOOP_VERSION.tar.gz
+
+# # 언어 및 시간 설정    
+# RUN apt-get install -y locales \
+#     locale-gen ko_KR.UTF-8 && \
+#     update-locale LANG=ko_KR.UTF-8 && \
+#     ln -sf /usr/share/zoneinfo/Asia/Seoul /etc/localtime && \
+#     echo "Asia/Seoul" > /etc/timezone
+
+# ENV LANG=ko_KR.UTF-8 \
+#     LANGUAGE=ko_KR:ko \
+#     LC_ALL=ko_KR.UTF-8 \
+#     TZ=Asia/Seoul
+
+# COPY 명령어로 설정 파일을 Hadoop 디렉토리의 설정 폴더에 복사
+COPY core-site.xml $HADOOP_CONF_DIR/core-site.xml
+COPY hdfs-site.xml $HADOOP_CONF_DIR/hdfs-site.xml
+
+# # Configure SSH for Hadoop
+# RUN ssh-keygen -t rsa -P '' -f ~/.ssh/id_rsa && \
+#     cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys && \
+#     chmod 0600 ~/.ssh/authorized_keys
+
+# Create 'hdfs' user and set permissions
+RUN useradd -m hdfs \
+    && chown -R hdfs:hdfs $HADOOP_HOME \
+    && chmod -R 755 $HADOOP_HOME
+
+# Set HDFS environment variables
+RUN echo 'export HDFS_NAMENODE_USER=hdfs' >> $HADOOP_HOME/etc/hadoop/hadoop-env.sh \
+    && echo 'export HDFS_DATANODE_USER=hdfs' >> $HADOOP_HOME/etc/hadoop/hadoop-env.sh \
+    && echo 'export HDFS_SECONDARYNAMENODE_USER=hdfs' >> $HADOOP_HOME/etc/hadoop/hadoop-env.sh
+
+# Format HDFS and initialize Hadoop
+USER hdfs
+RUN $HADOOP_HOME/bin/hdfs namenode -format
+
+# Switch back to root user (optional, depending on remaining tasks)
+# USER root
+
+# 포트 오픈
+EXPOSE 9870 9864 9866 8088 9000
+# 9870: HDFS web UI (http://<container IP>:9870으로 파일시스템 모니터링 가능)
+# 9864: HDFS DataNode web UI
+# 9866: HDFS DataNode IPC (DataNode - client/NameNode간 통신을 처리하는 내부 프로토콜 포트)
+# 9000: NameNode RPC (HDFS client가 NameNode와 통신하는 주요 포트)
+
+
+CMD ["/bin/bash"]
+# Start Hadoop Services on Container Launch
+# CMD ["bash", "-c", "start-dfs.sh && tail -f /dev/null"]
+# CMD ["start-dfs.sh", "&&", "tail", "-f", "/dev/null"]

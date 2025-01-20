@@ -1,0 +1,33 @@
+services:
+  namenode:
+    image: vs501kr/softeer:hadoop_v1.2
+    # platform: linux/amd64
+    container_name: namenode
+    hostname: namenode
+    ports:
+      - "9870:9870"
+      - "9000:9000"
+    command: "/bin/bash -c 'hdfs namenode -format && hdfs namenode && hdfs datanode && tail -f /dev/null'"
+
+# 이거는 멀티라고 한다.
+# # version: "3.9"
+# services:
+#   namenode:
+#     image: vs501kr/softeer:hadoop_v1.2
+#     # platform: linux/amd64
+#     container_name: namenode
+#     hostname: namenode
+#     ports:
+#       - "9870:9870"
+#       - "9000:9000"
+#     command: "/bin/bash -c 'hdfs namenode -format && hdfs namenode'"
+
+#   datanode-1:
+#     image: vs501kr/softeer:hadoop_v1.2
+#     # platform: linux/amd64
+#     container_name: datanode-1
+#     hostname: datanode-1
+#     ports:
+#       - "9861:9864"
+#       - "9001:9000"
+#     command: ["hdfs", "datanode"]

@@ -1,0 +1,29 @@
+version: "3.8"
+services:
+  namenode:
+    image: hadoop-namenode:latest
+    container_name: namenode
+    ports:
+      - "9870:9870" # NameNode Web UI
+      - "9000:9000" # NameNode RPC
+    volumes:
+      - namenode_data:/hadoop_data/namenode
+    command: ["/bin/bash", "/init-hdfs.sh"]
+    environment:
+      - CLUSTER_NAME=my-hadoop-cluster
+
+  datanode:
+    image: hadoop-datanode:latest
+    container_name: datanode
+    ports:
+      - "9864:9864" # DataNode Web UI
+    volumes:
+      - datanode_data:/hadoop_data/datanode
+    depends_on:
+      - namenode
+    environment:
+      - CLUSTER_NAME=my-hadoop-cluster
+
+volumes:
+  namenode_data:
+  datanode_data:

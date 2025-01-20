@@ -1,0 +1,59 @@
+FROM ubuntu:24.04 AS hadoop_base
+
+# 하둡 버전과 디렉토리 지정 및 JAVA 환경변수 설정
+ENV HADOOP_VERSION=3.3.6 \
+    HADOOP_HOME=/usr/local/hadoop \
+    HADOOP_CONF_DIR=/usr/local/hadoop/etc/hadoop \
+    JAVA_HOME=/usr/lib/jvm/java-11-openjdk-arm64 \
+    PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin
+
+# 필수 패키지 설치
+RUN apt-get update && \
+    apt-get install -y openjdk-11-jdk ssh curl rsync locales openssh-server && \
+    apt-get clean
+
+# 하둡 설치
+RUN curl -O https://dlcdn.apache.org/hadoop/common/hadoop-$HADOOP_VERSION/hadoop-$HADOOP_VERSION.tar.gz && \
+    tar -xzvf hadoop-$HADOOP_VERSION.tar.gz && \
+    mv hadoop-$HADOOP_VERSION /usr/local/hadoop && \
+    rm hadoop-$HADOOP_VERSION.tar.gz
+
+# Hadoop 설정 파일 복사
+COPY core-site.xml $HADOOP_CONF_DIR/core-site.xml
+COPY hdfs-site.xml $HADOOP_CONF_DIR/hdfs-site.xml
+
+# SSH 서비스 설치 및 시작
+RUN mkdir -p /var/run/sshd
+
+# SSH 관련 설정: root 권한을 명시적으로 사용하도록 변경
+RUN sed -i 's/^PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config && \
+    service ssh restart
+
+
+# SSH 키 생성 및 권한 설정
+RUN ssh-keygen -t rsa -P '' -f /root/.ssh/id_rsa && \
+    cat /root/.ssh/id_rsa.pub >> /root/.ssh/authorized_keys && \
+    chmod 0600 /root/.ssh/authorized_keys
+
+# HDFS 사용자 생성 및 권한 설정
+RUN useradd -m hdfs && \
+    chown -R hdfs:hdfs $HADOOP_HOME && \
+    chmod -R 755 $HADOOP_HOME
+
+# HDFS 환경 변수 설정
+RUN echo 'export HDFS_NAMENODE_USER=hdfs' >> $HADOOP_HOME/etc/hadoop/hadoop-env.sh && \
+    echo 'export HDFS_DATANODE_USER=hdfs' >> $HADOOP_HOME/etc/hadoop/hadoop-env.sh && \
+    echo 'export HDFS_SECONDARYNAMENODE_USER=hdfs' >> $HADOOP_HOME/etc/hadoop/hadoop-env.sh
+
+# 실행 권한 부여: hdfs-config.sh 파일에 대한 권한 부여
+RUN chmod +x $HADOOP_HOME/libexec/hdfs-config.sh
+
+# HDFS 초기화 (이미지 빌드 시 수행)
+USER hdfs
+RUN /bin/bash -c "$HADOOP_HOME/bin/hdfs namenode -format"
+
+# 포트 오픈
+EXPOSE 9870 9864 9866 8088 9000
+
+# SSH 및 Hadoop 서비스 시작
+CMD ["/bin/bash", "-c", "service ssh start && $HADOOP_HOME/sbin/start-dfs.sh && tail -f /dev/null"]

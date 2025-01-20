@@ -1,0 +1,13 @@
+version: "3.8"
+services:
+  hadoop:
+    build: .
+    container_name: hadoop-node
+    ports:
+      - "9870:9870" # HDFS Web UI
+      - "9864:9864" # DataNode Web UI
+      - "9000:9000" # NameNode RPC
+      - "8088:8088"
+    volumes:
+      - ./hadoop_data:/hadoop_data
+    command: ["/bin/bash", "/init-hdfs.sh"] # HDFS 초기화 스크립트 실행
