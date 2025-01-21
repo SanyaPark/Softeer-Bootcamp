@@ -1,0 +1,44 @@
+FROM ubuntu:24.04
+
+RUN apt-get update
+
+# Set TimeZone (이 작업이 없으면 openjdk 설치할 때 TimeZone 선택하라면서 막힘)
+RUN ln -fs /usr/share/zoneinfo/Asia/Seoul /etc/localtime
+RUN DEBIAN_FRONTEND=noninteractive apt-get install -y tzdata
+
+# 패키지 다운로드
+RUN apt-get install -y wget vim curl
+RUN apt-get install -y openjdk-8-jdk openssh-server
+
+ENV HADOOP_VERSION=3.3.6
+ENV DEBIAN_FRONTEND=noninteractive 
+
+
+# Hadoop 설치
+RUN wget https://mirrors.sonic.net/apache/hadoop/common/hadoop-$HADOOP_VERSION/hadoop-$HADOOP_VERSION.tar.gz -P ~/Downloads; \
+    tar zxf ~/Downloads/hadoop-3.3.6.tar.gz -C /usr/local; \
+    mv /usr/local/hadoop-3.3.6 /usr/local/hadoop; \
+    rm ~/Downloads/hadoop-3.3.6.tar.gz
+
+# ssh 설정
+RUN ssh-keygen -t rsa -f ~/.ssh/id_rsa -P '' && \
+    cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys && \
+    chmod 600 ~/.ssh/id_rsa && \
+    echo "Host *\n  StrictHostKeyChecking no" > ~/.ssh/config
+
+# Java 설정
+ENV JAVA_HOME=/usr/lib/jvm/java-8-openjdk-arm64
+
+# Hadoop 설정
+ENV HADOOP_HOME=/usr/local/hadoop \
+    HADOOP_CONF_DIR=/usr/local/hadoop/etc/hadoop
+ENV PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin
+RUN echo "export JAVA_HOME=$JAVA_HOME" >> /usr/local/hadoop/etc/hadoop/hadoop-env.sh; \
+    echo "export HDFS_NAMENODE_USER=root" >> /usr/local/hadoop/etc/hadoop/hadoop-env.sh; \
+    echo "export HDFS_DATANODE_USER=root" >> /usr/local/hadoop/etc/hadoop/hadoop-env.sh; \
+    echo "export HDFS_SECONDARYNAMENODE_USER=root" >> /usr/local/hadoop/etc/hadoop/hadoop-env.sh;
+
+COPY config/*.xml /usr/local/hadoop/etc/hadoop/
+COPY entry.sh /usr/local/bin/entry.sh
+RUN chmod +x /usr/local/bin/entry.sh
+CMD ["/usr/local/bin/entry.sh"]

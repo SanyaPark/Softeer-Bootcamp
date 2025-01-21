@@ -1,0 +1,44 @@
+version: "3.9"
+services:
+  hadoop-namenode:
+    build:
+      context: .
+    container_name: hadoop-namenode
+    hostname: hadoop-namenode
+    environment:
+      - CORE_CONF_fs_defaultFS=hdfs://hadoop-namenode:9000
+      - YARN_RESOURCEMANAGER_USER=yarn
+    networks: # 노드간 통신을 위한 네트워크 설정
+      - hadoop-network      
+    ports:
+      - "9870:9870"
+      - "9000:9000"
+      - "22:22"
+    volumes:
+      - namenode-data:/hadoop-data
+    tty: true
+    command: ["/usr/local/bin/entry_multi.sh"]
+    
+  hadoop-datanode:
+    build:
+      context: .
+    container_name: hadoop-datanode
+    hostname: hadoop-datanode
+    environment:
+      - CORE_CONF_fs_defaultFS=hdfs://hadoop-namenode:9000
+      - YARN_NODEMANAGER_USER=yarn
+    depends_on:
+      - hadoop-namenode
+    ports:
+      - "9864:9864"
+    volumes:
+      - datanode-data:/hadoop-data
+    tty: true
+
+volumes:
+  namenode-data:
+  datanode-data:
+
+networks:
+  hadoop-network:
+    driver: bridge

@@ -1,0 +1,21 @@
+services:
+  hadoop:
+    image: vs501kr/softeer:hadoop_v1.3
+    container_name: hadoop-single-node-container
+    ports:
+      - "9870:9870"  # HDFS Web UI
+      - "9000:9000"  # HDFS Default NameNode RPC Address
+    volumes:
+      - ./data/data:/usr/local/hadoop/tmp/dfs/data
+      - ./data/name:/usr/local/hadoop/tmp/dfs/name
+    environment: # Hadoop User에 루트 권한 부여
+      HDFS_NAMENODE_USER: root
+      HDFS_DATANODE_USER: root
+      HDFS_SECONDARYNAMENODE_USER: root
+    networks: # 노드간 통신을 위한 네트워크 설정
+      - hadoop-network
+    command: ["/usr/local/bin/entrypoint.sh"]
+
+networks:
+  hadoop-network:
+    driver: bridge

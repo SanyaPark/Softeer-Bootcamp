@@ -1,0 +1,78 @@
+services:
+  namenode:
+    image: vs501kr/softeer:hadoop_multi
+    container_name: namenode
+    hostname: namenode
+    ports:
+      - "9870:9870"  # HDFS Web UI
+      - "9000:9000"
+    volumes:
+      - ./data/namenode:/usr/local/hadoop/tmp/dfs/name
+    environment:
+      HDFS_NAMENODE_USER: root
+      HDFS_SECONDARYNAMENODE_USER: root
+    networks:
+      - hadoop-network
+
+  datanode1:
+    image: vs501kr/softeer:hadoop_multi
+    container_name: datanode1
+    hostname: datanode1
+    ports:
+      - "9863:9864"
+      - "9867:9866"
+    volumes:
+      - ./data/datanode1:/usr/local/hadoop/tmp/dfs/data
+    environment:
+      HDFS_DATANODE_USER: root
+    depends_on:
+      - namenode
+    networks:
+      - hadoop-network
+
+  datanode2:
+    image: vs501kr/softeer:hadoop_multi
+    container_name: datanode2
+    hostname: datanode2
+    ports:
+      - "9862:9864"
+      - "9868:9866"    
+    volumes:
+      - ./data/datanode2:/usr/local/hadoop/tmp/dfs/data
+    environment:
+      HDFS_DATANODE_USER: root
+    depends_on:
+      - namenode
+    networks:
+      - hadoop-network
+
+  resourcemanager:
+    image: vs501kr/softeer:hadoop_multi
+    container_name: resourcemanager
+    hostname: resourcemanager
+    ports:
+      - "8088:8088"  # YARN ResourceManager Web UI
+    networks:
+      - hadoop-network
+
+  nodemanager1:
+    image: vs501kr/softeer:hadoop_multi
+    container_name: nodemanager1
+    hostname: nodemanager1
+    depends_on:
+      - resourcemanager
+    networks:
+      - hadoop-network
+  
+  nodemanager2:
+    image: vs501kr/softeer:hadoop_multi
+    container_name: nodemanager2
+    hostname: nodemanager2
+    depends_on:
+      - resourcemanager
+    networks:
+      - hadoop-network
+
+networks:
+  hadoop-network:
+    driver: bridge

@@ -1,0 +1,27 @@
+services:
+  hadoop-namenode:
+    image: vs501kr/softeer:hadoop_v2.0
+    # build:
+    #   context: .
+    container_name: hadoop-namenode
+    # hostname: hadoop-namenode
+    environment:
+      - CORE_CONF_fs_defaultFS=hdfs://hadoop-namenode:9000
+      # - YARN_RESOURCEMANAGER_USER=yarn
+    networks: # 노드간 통신을 위한 네트워크 설정
+      - hadoop-network      
+    ports:
+      - "9870:9870"
+      - "9000:9000"
+      - "22:22"
+    volumes:
+      - namenode-data:/hadoop-data
+    # tty: true
+    command: ["/usr/local/bin/entry.sh"]
+
+volumes:
+  namenode-data:
+
+networks:
+  hadoop-network:
+    driver: bridge

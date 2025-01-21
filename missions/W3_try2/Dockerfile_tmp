@@ -1,0 +1,97 @@
+# Base image
+FROM ubuntu:20.04
+
+# 환경 변수 설정
+ENV DEBIAN_FRONTEND=noninteractive
+ENV HADOOP_HOME=/usr/local/hadoop
+ENV PATH=$HADOOP_HOME/bin:$HADOOP_HOME/sbin:$PATH
+ENV JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
+
+# 필수 패키지 설치 및 업데이트
+RUN apt-get update && apt-get install -y \
+    openjdk-11-jdk wget ssh rsync python3.11 python3.11-venv python3.11-distutils vim \
+    && apt-get clean
+
+# Hadoop 다운로드 및 설치
+WORKDIR /usr/local
+RUN wget -qO- https://downloads.apache.org/hadoop/common/stable/hadoop-3.3.6.tar.gz | tar -xz \
+    && mv hadoop-3.3.6 hadoop \
+    && chown -R root:root $HADOOP_HOME
+
+# hdfs 및 yarn 사용자 생성
+RUN groupadd hadoop \
+    && useradd -r -g hadoop hdfs \
+    && useradd -r -g hadoop yarn \
+    && mkdir -p /hadoop-data/hdfs/namenode /hadoop-data/hdfs/datanode \
+    && chown -R hdfs:hadoop /hadoop-data \
+    && chmod -R 750 /hadoop-data
+
+# Hadoop 환경설정
+WORKDIR $HADOOP_HOME/etc/hadoop
+
+# core-site.xml 설정
+RUN echo '<?xml version="1.0" encoding="UTF-8"?> \
+<configuration> \
+  <property> \
+    <name>fs.defaultFS</name> \
+    <value>hdfs://localhost:9000</value> \
+  </property> \
+</configuration>' > core-site.xml
+
+# hdfs-site.xml 설정
+RUN echo '<?xml version="1.0" encoding="UTF-8"?> \
+<configuration> \
+  <property> \
+    <name>dfs.replication</name> \
+    <value>1</value> \
+  </property> \
+  <property> \
+    <name>dfs.namenode.name.dir</name> \
+    <value>file:/hadoop-data/hdfs/namenode</value> \
+  </property> \
+  <property> \
+    <name>dfs.datanode.data.dir</name> \
+    <value>file:/hadoop-data/hdfs/datanode</value> \
+  </property> \
+</configuration>' > hdfs-site.xml
+
+# yarn-site.xml 설정
+RUN echo '<?xml version="1.0" encoding="UTF-8"?> \
+<configuration> \
+  <property> \
+    <name>yarn.nodemanager.aux-services</name> \
+    <value>mapreduce_shuffle</value> \
+  </property> \
+</configuration>' > yarn-site.xml
+
+# mapred-site.xml 설정
+RUN cp mapred-site.xml.template mapred-site.xml && \
+    echo '<?xml version="1.0" encoding="UTF-8"?> \
+<configuration> \
+  <property> \
+    <name>mapreduce.framework.name</name> \
+    <value>yarn</value> \
+  </property> \
+</configuration>' > mapred-site.xml
+
+# HDFS 포맷
+RUN chown -R hdfs:hadoop $HADOOP_HOME && \
+    echo "export JAVA_HOME=$JAVA_HOME" >> $HADOOP_HOME/etc/hadoop/hadoop-env.sh && \
+    su - hdfs -c "$HADOOP_HOME/bin/hdfs namenode -format"
+
+# SSH 설정
+RUN ssh-keygen -t rsa -P "" -f ~/.ssh/id_rsa && \
+    cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys && \
+    chmod 600 ~/.ssh/authorized_keys
+
+# 데이터 디렉토리 마운트 및 볼륨 설정
+VOLUME ["/hadoop-data"]
+
+# 포트 노출
+EXPOSE 9870 8088 9000
+
+# 컨테이너 시작 시 실행할 스크립트
+COPY start-hadoop.sh /usr/local/bin/start-hadoop.sh
+RUN chmod +x /usr/local/bin/start-hadoop.sh
+
+CMD ["start-hadoop.sh"]
