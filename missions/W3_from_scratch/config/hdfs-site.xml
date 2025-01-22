@@ -1,18 +1,14 @@
 <configuration>
     <property>
         <name>dfs.replication</name>
-        <value>2</value>
-    </property>
-    <property>
-        <name>dfs.blocksize</name>
-        <value>134217728</value>
+        <value>1</value>
     </property>
     <property>
         <name>dfs.namenode.name.dir</name>
-        <value>/hadoop/dfs/name</value>
+        <value>file:///usr/local/hadoop/tmp/dfs/name</value>
     </property>
     <property>
         <name>dfs.datanode.data.dir</name>
-        <value>/hadoop/dfs/data</value>
+        <value>file:///usr/local/hadoop/tmp/dfs/data</value>
     </property>
 </configuration>

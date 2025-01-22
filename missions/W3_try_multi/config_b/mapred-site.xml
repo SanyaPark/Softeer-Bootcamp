@@ -1,12 +1,12 @@
 <configuration>
     <property>
         <name>mapreduce.framework.name</name>
-        <value>local</value>
-        <!-- <value>yarn</value> -->
+        <!-- <value>local</value> -->
+        <value>yarn</value>
     </property>
     <property>
-        <name>mapreduce.jobhistory.address</name>
-        <value>namenode:10020</value>
+        <name>mapreduce.job.tracker</name>
+        <value>namenode:9001</value>
     </property>
     <property>
         <name>mapreduce.task.io.sort.mb</name>
