@@ -11,8 +11,4 @@
         <name>yarn.schedule.minimum-allocation-mb</name>
         <value>1024</value>
     </property>
-    <property>
-        <name>yarn.resourcemanager.hostname</name>
-        <value>resourcemanager</value>
-    </property>
 </configuration>

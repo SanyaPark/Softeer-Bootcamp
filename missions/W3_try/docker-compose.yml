@@ -1,6 +1,7 @@
 services:
   hadoop:
     image: vs501kr/softeer:hadoop_v1.3
+    hostname: hadoop-single-node-container
     container_name: hadoop-single-node-container
     ports:
       - "9870:9870"  # HDFS Web UI
