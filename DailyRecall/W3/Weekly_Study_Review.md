@@ -19,36 +19,36 @@ drwxr-x--- 2 ubuntu     ubuntu     4096 Nov 19 09:50 ubuntu
 ```
 
 hadoopuser에게 패스워드 묻지 않음
-```bash
+```dockerfile
 RUN echo "hadoopuser ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 ```
 
 ⬇️ 컨테이너 간 패스워드 없는 통신을 위한 SSH 설정 ⬇️
 ```/.ssh``` ➡️ 패스워드 없는 통신을 위한 ssh key가 들어갈 폴더 생성 및 권한 부여
-```bash
+```dockerfile
 RUN mkdir /home/hadoopuser/.ssh && \
     chmod 700 /home/hadoopuser/.ssh
 ```
 
 옵션 설명: ```-t ras ➡️ key_type=RSA``` | ```-P '' ➡️ no passwd``` | ```-f <dir> ➡️ save key to <dir>```
-```bash
+```dockerfile
 RUN ssh-keygen -t rsa -P '' -f /home/hadoopuser/.ssh/id_rsa 
 ```
 
 각 컨테이너가 자신의 공개키를 authorized_keys에 등록 ➡️ hadoopuser가 패스워드 없이 접근 가능하게 됨 → 컨테이너 간 동일한 SSH key를 공유하지 않아도 됨.
-```bash
+```dockerfile
 RUN cat /home/hadoopuser/.ssh/id_rsa.pub >> /home/hadoopuser/.ssh/authorized_keys && \
     chmod 600 /home/hadoopuser/.ssh/authorized_keys && \
     chown -R hadoopuser:hadoopuser /home/hadoopuser/.ssh
 ```
 
 hadoopuser에게 /usr/local/hadoop 이하 폴더의 권한 부여
-```bash
+```dockerfile
 RUN chown -R hadoopuser:hadoopuser /usr/local/hadoop
 ```
 
 hadoopuser 계정으로 진입 및 작업 폴더 설정
-```bash
+```dockerfile
 USER hadoopuser
 WORKDIR /home/hadooopuser
 ```
