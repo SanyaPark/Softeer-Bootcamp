@@ -1,95 +1,54 @@
 services:
 # Name Node --------------------------------------------
-  namenode:
-    image: vs501kr/softeer:hadoop_scratch_v1.0
-    container_name: namenode
-    hostname: namenode
+  spark-master:
+    image: vs501kr/softeer-spark_scratch:v1.0
+    container_name: spark-master
+    hostname: spark-master
     ports:
-      - "9870:9870"  # HDFS Web UI
-      - "9000:9000"
+      # - "9870:9870"  # HDFS Web UI
+      # - "9000:9000"
       - "2222:22"
+      - "7077:7077"
+      - "8080:8080"
     volumes:
-      - ./workspace:/home/hadoopuser
+      - ./workspace:/home/sparkuser
     environment:
-      HDFS_NAMENODE_USER: hadoopuser
-      HDFS_SECONDARYNAMENODE_USER: hadoopuser
-      YARN_RESOURCEMANAGER_USE: yarn
-
       NODETYPE: master
     networks:
-      - hadoop-network
+      - spark-network
 
 # Data Node --------------------------------------------
-  datanode1:
-    image: vs501kr/softeer:hadoop_scratch_v1.0
-    container_name: datanode1
-    hostname: datanode1
+  spark-worker-1:
+    image: vs501kr/softeer-spark_scratch:v1.0
+    container_name: spark-worker-1
+    hostname: spark-worker-1
     ports:
-      - "9863:9864"
-      - "9867:9866"
+      - "8081:8081"
     # volumes:
     #   - ./data/datanode1:/usr/local/hadoop/tmp/dfs/data
     environment:
-      HDFS_DATANODE_USER: hadoopuser
-      YARN_NODEMANAGER_USER: yarn
-      NODETYPE: slave
+      NODETYPE: worker
     depends_on:
-      - namenode
+      - spark-master
     networks:
-      - hadoop-network
+      - spark-network
 
-  datanode2:
-    image: vs501kr/softeer:hadoop_scratch_v1.0
-    container_name: datanode2
-    hostname: datanode2
+  spark-worker-2:
+    image: vs501kr/softeer-spark_scratch:v1.0
+    container_name: spark-worker-2
+    hostname: spark-worker-2
     ports:
-      - "9862:9864"
-      - "9868:9866"    
+      - "8082:8081"
     # volumes:
-    #   - ./data/datanode2:/usr/local/hadoop/tmp/dfs/data
+    #   - ./data/datanode1:/usr/local/hadoop/tmp/dfs/data
     environment:
-      HDFS_DATANODE_USER: hadoopuser
-      YARN_NODEMANAGER_USER: yarn
-      NODETYPE: slave
+      NODETYPE: worker
     depends_on:
-      - namenode
+      - spark-master
     networks:
-      - hadoop-network
+      - spark-network
 
-# Resource Manager --------------------------------------------
-  resourcemanager:
-    image: vs501kr/softeer:hadoop_scratch_v1.0
-    container_name: resourcemanager
-    hostname: resourcemanager
-    ports:
-      - "8088:8088"  # YARN ResourceManager Web UI
-    environment:
-      NODETYPE: master
-    networks:
-      - hadoop-network
-
-  nodemanager1:
-    image: vs501kr/softeer:hadoop_scratch_v1.0
-    container_name: nodemanager1
-    hostname: nodemanager1
-    depends_on:
-      - resourcemanager
-    environment:
-      NODETYPE: slave
-    networks:
-      - hadoop-network
-  
-  nodemanager2:
-    image: vs501kr/softeer:hadoop_scratch_v1.0
-    container_name: nodemanager2
-    hostname: nodemanager2
-    depends_on:
-      - resourcemanager
-    environment:
-      NODETYPE: slave      
-    networks:
-      - hadoop-network
 
 networks:
-  hadoop-network:
+  spark-network:
     driver: bridge

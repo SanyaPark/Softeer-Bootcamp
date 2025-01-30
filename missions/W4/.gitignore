@@ -228,4 +228,6 @@ pyrightconfig.json
 # Docker Data folder
 /data
 .bash_history
+/workspace
+*.tgz
 # End of https://www.toptal.com/developers/gitignore/api/macos,visualstudiocode,python
