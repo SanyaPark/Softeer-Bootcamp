@@ -21,10 +21,11 @@ RUN apt-get install -y openjdk-11-jdk
 ENV JAVA_HOME=/usr/lib/jvm/java-11-openjdk-arm64
 ENV PATH=${PATH}:${JAVA_HOME}/bin
 
-# install python and pyspark
+# install python, findspark, pyspark, jupyter
 RUN apt-get update && \
     apt-get install -y python3 python3-pip
-# RUN pip3 install pyspark
+RUN pip3 install --break-system-packages --no-cache-dir pyspark findspark jupyter
+# --break-system-packages : python 3.12 이상의 버전은 파이썬 환경 보호를 위해 pip3 install을 막는다. 이를 우회함
 
 # Setting Hadoop ENVs
 ENV HADOOP_VERSION=3.3.6
@@ -116,6 +117,12 @@ COPY start-spark.sh /usr/local/bin/start-spark.sh
 
 RUN chmod +x /usr/local/bin/start-spark.sh
 # RUN chmod +x /home/sparkuser/start-spark.sh
+
+
+ENV PYSPARK_DRIVER_PYTHON=jupyter
+ENV PYSPARK_DRIVER_PYTHON_OPTS=notebook
+EXPOSE 8888
+
 
 USER sparkuser
 WORKDIR /home/sparkuser

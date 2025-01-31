@@ -229,5 +229,7 @@ pyrightconfig.json
 /data
 .bash_history
 /workspace
+/TLC
 *.tgz
+.DS_Store
 # End of https://www.toptal.com/developers/gitignore/api/macos,visualstudiocode,python
