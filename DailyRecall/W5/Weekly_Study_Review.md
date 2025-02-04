@@ -177,3 +177,55 @@ Spark는 (key, value) 형태의 RDD에서 reduceByKey를 호출하면 자동으�
 * reduceByKey는 항상 (key, value) 구조를 가진 RDD에서 동작해.
 * key는 첫 번째 요소(위 예제에서는 날짜)이며, 같은 key를 가진 값들을 그룹화해서 연산해.
 * 별도로 key를 명시하지 않아도 Spark가 첫 번째 요소를 key로 인식해 처리해줘.
+
+### 질문 사항 
+`.reduce(lambda a, b: (a[0] + b[0], a[1] + b[1], a[2] + b[2]))`를 
+`from operator import add`를 이용해서
+`.reduce(add)` 이렇게 해도 문제가 없을까?
+
+> `.reduce(add)`를 사용하면, 두 개의 튜플이 연결(concatenation)되어 의도한 결과가 나오지 않습니다.
+
+
+`.write().parquet("path")`으로 저장했더니 폴더와 함께 여러 파일로 쪼개져서 저장되었어.
+> `.coalesce(1)`는 기존 파티션을 하나로 줄여주는 Transformation입니다. 데이터가 아주 많지 않은 경우에 적합합니다.
+> 만약 데이터가 크고 여러 파일로 저장되는 것이 문제가 아니라면, 여러 .part 파일을 후처리 도구(예: Hadoop FileUtil, cat 명령어 등)를 이용해 하나의 파일로 합치는 것도 고려해볼 수 있습니다.
+
+### Fancy 한 필터링 코드
+```python
+# --- Fancy한 필터링 코드 시작 ---
+# 검사할 컬럼 리스트 (실제 작업에서는 필요한 컬럼들만 지정)
+numeric_columns = ["int_col", "double_col", "long_col"]
+
+# 각 컬럼에 대해 "null이 아니고" 그리고 "값이 0 이상"인 조건을 생성합니다.
+conditions = [ (col(c).isNotNull()) & (col(c) >= 0) for c in numeric_columns ]
+
+# 모든 조건을 AND(&)로 결합합니다.
+combined_condition = reduce(lambda a, b: a & b, conditions)
+
+# 조건을 만족하는 행만 남깁니다.
+clean_df = df.filter(combined_condition)
+```
+
+**reduce의 동작:** <br>
+`reduce`는 리스트의 첫 번째와 두 번째 요소를 받아서 lambda 함수에 전달합니다.
+예를 들어, 첫 번째 조건과 두 번째 조건을 받아 `a & b` 연산을 수행합니다.
+여기서 a는 첫 번째 조건, b는 두 번째 조건입니다.
+`a & b`는 Spark의 Column 객체에서 제공하는 논리 연산자로, 두 조건을 AND 연산하여 결합한 새로운 조건을 반환합니다.
+이후, 이 결합된 조건과 세 번째 조건이 다시 lambda 함수에 전달되어 `( (조건1 & 조건2) & 조건3 )` 형태의 하나의 조건으로 결합됩니다.
+즉, reduce의 lambda 함수는 리스트의 모든 조건을 순차적으로 AND 연산으로 결합하여, **모든 조건을 동시에 만족하는 행만 남길 수 있는 단일 조건**을 만들어냅니다.
+
+#### Timestamp 형식의 컬럼 필터링
+```python
+from pyspark.sql.functions import year, col
+
+# Timestamp 컬럼 필터 조건 생성
+timestamp_conditions = [
+    year(col("timestamp_col1")) == 2024,
+    year(col("timestamp_col2")) == 2024
+]
+```
+
+### 컬럼 내림차순 보기
+```python
+df.orderBy(col("numeric_col").desc()).show()
+```
